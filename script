@@ -1,0 +1,167 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+----------------------------------------------------
+-- SETTINGS
+----------------------------------------------------
+
+local camlockEnabled = false
+local hitboxSize = 4
+local lockTarget = nil
+
+----------------------------------------------------
+-- HITBOX CREATION
+----------------------------------------------------
+
+local function createHitbox(char)
+    if char:FindFirstChild("AimHitbox") then return end
+
+    local hrp = char:WaitForChild("HumanoidRootPart")
+
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "AimHitbox"
+    hitbox.Size = Vector3.new(hitboxSize, hitboxSize + 1, hitboxSize)
+    hitbox.Transparency = 0.5
+    hitbox.Color = Color3.fromRGB(255, 80, 80)
+    hitbox.Material = Enum.Material.ForceField
+    hitbox.CanCollide = false
+    hitbox.Massless = true
+    hitbox.Parent = char
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = hrp
+    weld.Part1 = hitbox
+    weld.Parent = hitbox
+
+    hitbox.CFrame = hrp.CFrame
+end
+
+-- Add hitboxes to all players
+local function setupCharacter(char)
+    createHitbox(char)
+end
+
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr.Character then
+        setupCharacter(plr.Character)
+    end
+
+    plr.CharacterAdded:Connect(setupCharacter)
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(setupCharacter)
+end)
+
+----------------------------------------------------
+-- TARGETING
+----------------------------------------------------
+
+local function getClosestTarget()
+    local closest, shortest = nil, math.huge
+
+    for _, other in pairs(Players:GetPlayers()) do
+        if other ~= player and other.Character and other.Character:FindFirstChild("AimHitbox") then
+            local hitbox = other.Character.AimHitbox
+            local dist = (hitbox.Position - camera.CFrame.Position).Magnitude
+
+            if dist < shortest then
+                shortest = dist
+                closest = hitbox
+            end
+        end
+    end
+
+    return closest
+end
+
+----------------------------------------------------
+-- CAMLOCK LOOP
+----------------------------------------------------
+
+RunService.RenderStepped:Connect(function()
+    if camlockEnabled then
+        if not lockTarget or not lockTarget.Parent then
+            lockTarget = getClosestTarget()
+        end
+
+        if lockTarget then
+            camera.CFrame = CFrame.new(
+                camera.CFrame.Position,
+                lockTarget.Position
+            )
+        end
+    end
+end)
+
+----------------------------------------------------
+-- GUI
+----------------------------------------------------
+
+local gui = Instance.new("ScreenGui")
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 210, 0, 180)
+frame.Position = UDim2.new(0, 20, 0.5, -90)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+-- Camlock Button
+local camBtn = Instance.new("TextButton")
+camBtn.Size = UDim2.new(1, -20, 0, 45)
+camBtn.Position = UDim2.new(0, 10, 0, 10)
+camBtn.Text = "Camlock: OFF"
+camBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+camBtn.TextColor3 = Color3.new(1,1,1)
+camBtn.Parent = frame
+
+camBtn.MouseButton1Click:Connect(function()
+    camlockEnabled = not camlockEnabled
+    camBtn.Text = camlockEnabled and "Camlock: ON" or "Camlock: OFF"
+    lockTarget = nil
+end)
+
+-- Hitbox Slider Button (simple cycle)
+local slider = Instance.new("TextButton")
+slider.Size = UDim2.new(1, -20, 0, 45)
+slider.Position = UDim2.new(0, 10, 0, 65)
+slider.Text = "Hitbox Size: 4"
+slider.BackgroundColor3 = Color3.fromRGB(40,40,40)
+slider.TextColor3 = Color3.new(1,1,1)
+slider.Parent = frame
+
+local function updateHitboxes()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr.Character and plr.Character:FindFirstChild("AimHitbox") then
+            plr.Character.AimHitbox.Size =
+                Vector3.new(hitboxSize, hitboxSize + 1, hitboxSize)
+        end
+    end
+end
+
+slider.MouseButton1Click:Connect(function()
+    hitboxSize += 1
+    if hitboxSize > 10 then hitboxSize = 2 end
+
+    slider.Text = "Hitbox Size: "..hitboxSize
+    updateHitboxes()
+end)
+
+-- GUI Toggle Button
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0, 120, 0, 35)
+togglePosition = UDim2.new(0, 20, 0.5, -130)
+toggle.Position = togglePosition
+toggle.Text = "Toggle UI"
+toggle.BackgroundColor3 = Color3.fromRGB(40,40,40)
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.Parent = gui
+
+toggle.MouseButton1Click:Connect(function()
+    frame.Visible = not frame.Visible
+end)
