@@ -1,6 +1,5 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -11,40 +10,40 @@ local camera = workspace.CurrentCamera
 
 local camlockEnabled = false
 local hitboxSize = 4
-local lockTarget = nil
+local aimSmoothness = 0.15 -- lower = stronger lock
 
 ----------------------------------------------------
--- HITBOX CREATION
+-- HITBOX EXTENDER (VISIBLE BOX)
 ----------------------------------------------------
 
 local function createHitbox(char)
-    if char:FindFirstChild("AimHitbox") then return end
+    if char:FindFirstChild("HitboxExtender") then return end
 
     local hrp = char:WaitForChild("HumanoidRootPart")
 
-    local hitbox = Instance.new("Part")
-    hitbox.Name = "AimHitbox"
-    hitbox.Size = Vector3.new(hitboxSize, hitboxSize + 1, hitboxSize)
-    hitbox.Transparency = 0.3
-    hitbox.Color = Color3.fromRGB(255, 60, 60)
-    hitbox.Material = Enum.Material.Neon
-    hitbox.CanCollide = false
-    hitbox.Massless = true
-    hitbox.Parent = char
+    local box = Instance.new("Part")
+    box.Name = "HitboxExtender"
+    box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+    box.Transparency = 0.5
+    box.Color = Color3.fromRGB(255, 60, 60)
+    box.Material = Enum.Material.Neon
+    box.CanCollide = false
+    box.Massless = true
+    box.Parent = char
 
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = hrp
-    weld.Part1 = hitbox
-    weld.Parent = hitbox
+    weld.Part1 = box
+    weld.Parent = box
 
-    hitbox.CFrame = hrp.CFrame
+    box.CFrame = hrp.CFrame
 end
 
 local function updateHitboxes()
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Character and plr.Character:FindFirstChild("AimHitbox") then
-            plr.Character.AimHitbox.Size =
-                Vector3.new(hitboxSize, hitboxSize + 1, hitboxSize)
+        if plr.Character and plr.Character:FindFirstChild("HitboxExtender") then
+            local box = plr.Character.HitboxExtender
+            box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
         end
     end
 end
@@ -70,13 +69,13 @@ local function getClosestTarget()
     local closest, shortest = nil, math.huge
 
     for _, other in pairs(Players:GetPlayers()) do
-        if other ~= player and other.Character and other.Character:FindFirstChild("AimHitbox") then
-            local hitbox = other.Character.AimHitbox
-            local dist = (hitbox.Position - camera.CFrame.Position).Magnitude
+        if other ~= player and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = other.Character.HumanoidRootPart
+            local dist = (hrp.Position - camera.CFrame.Position).Magnitude
 
             if dist < shortest then
                 shortest = dist
-                closest = hitbox
+                closest = hrp
             end
         end
     end
@@ -85,23 +84,20 @@ local function getClosestTarget()
 end
 
 ----------------------------------------------------
--- CAMLOCK
+-- AIMBOT (SMOOTH, NO CAMERA FREEZE)
 ----------------------------------------------------
 
 RunService.RenderStepped:Connect(function()
-    if camlockEnabled then
-        camera.CameraType = Enum.CameraType.Scriptable
+    if not camlockEnabled then return end
 
-        if not lockTarget or not lockTarget.Parent then
-            lockTarget = getClosestTarget()
-        end
+    local target = getClosestTarget()
+    if not target then return end
 
-        if lockTarget then
-            camera.CFrame = CFrame.new(camera.CFrame.Position, lockTarget.Position)
-        end
-    else
-        camera.CameraType = Enum.CameraType.Custom
-    end
+    local camPos = camera.CFrame.Position
+    local aimCFrame = CFrame.new(camPos, target.Position)
+
+    -- Smooth aiming instead of snapping / freezing
+    camera.CFrame = camera.CFrame:Lerp(aimCFrame, aimSmoothness)
 end)
 
 ----------------------------------------------------
@@ -111,85 +107,57 @@ end)
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 240, 0, 160)
-frame.Position = UDim2.new(0, 30, 0.5, -80)
+frame.Size = UDim2.new(0, 240, 0, 150)
+frame.Position = UDim2.new(0, 25, 0.5, -75)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
-local corner = Instance.new("UICorner", frame)
-corner.CornerRadius = UDim.new(0, 12)
-
--- Camlock Button
+-- Camlock Toggle
 local camBtn = Instance.new("TextButton", frame)
 camBtn.Size = UDim2.new(1, -20, 0, 40)
 camBtn.Position = UDim2.new(0, 10, 0, 10)
-camBtn.Text = "Camlock: OFF"
+camBtn.Text = "Aimbot: OFF"
 camBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
 camBtn.TextColor3 = Color3.new(1,1,1)
 camBtn.BorderSizePixel = 0
-Instance.new("UICorner", camBtn).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", camBtn).CornerRadius = UDim.new(0, 6)
 
 camBtn.MouseButton1Click:Connect(function()
     camlockEnabled = not camlockEnabled
-    camBtn.Text = camlockEnabled and "Camlock: ON" or "Camlock: OFF"
-    lockTarget = nil
+    camBtn.Text = camlockEnabled and "Aimbot: ON" or "Aimbot: OFF"
 end)
 
--- Slider Background
-local sliderBg = Instance.new("Frame", frame)
-sliderBg.Size = UDim2.new(1, -20, 0, 20)
-sliderBg.Position = UDim2.new(0, 10, 0, 70)
-sliderBg.BackgroundColor3 = Color3.fromRGB(35,35,35)
-sliderBg.BorderSizePixel = 0
-Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(0, 6)
+-- Hitbox Slider Button (Cycle)
+local sizeBtn = Instance.new("TextButton", frame)
+sizeBtn.Size = UDim2.new(1, -20, 0, 40)
+sizeBtn.Position = UDim2.new(0, 10, 0, 60)
+sizeBtn.Text = "Hitbox Size: 4"
+sizeBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
+sizeBtn.TextColor3 = Color3.new(1,1,1)
+sizeBtn.BorderSizePixel = 0
+Instance.new("UICorner", sizeBtn).CornerRadius = UDim.new(0, 6)
 
--- Slider Fill
-local sliderFill = Instance.new("Frame", sliderBg)
-sliderFill.Size = UDim2.new(0.4, 0, 1, 0)
-sliderFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-sliderFill.BorderSizePixel = 0
-Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 6)
+sizeBtn.MouseButton1Click:Connect(function()
+    hitboxSize += 1
+    if hitboxSize > 12 then hitboxSize = 2 end
 
--- Label
-local label = Instance.new("TextLabel", frame)
-label.Size = UDim2.new(1, -20, 0, 20)
-label.Position = UDim2.new(0, 10, 0, 95)
-label.Text = "Hitbox Size: 4"
-label.TextColor3 = Color3.new(1,1,1)
-label.BackgroundTransparency = 1
-
--- Slider Logic (tap anywhere)
-sliderBg.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-    or input.UserInputType == Enum.UserInputType.Touch then
-
-        local percent = math.clamp(
-            (input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X,
-            0, 1
-        )
-
-        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-
-        hitboxSize = math.floor(2 + percent * 8)
-        label.Text = "Hitbox Size: " .. hitboxSize
-
-        updateHitboxes()
-    end
+    sizeBtn.Text = "Hitbox Size: " .. hitboxSize
+    updateHitboxes()
 end)
 
 -- Toggle UI Button
 local toggle = Instance.new("TextButton", gui)
 toggle.Size = UDim2.new(0, 120, 0, 35)
-toggle.Position = UDim2.new(0, 30, 0.5, -120)
+toggle.Position = UDim2.new(0, 25, 0.5, -110)
 toggle.Text = "Toggle UI"
 toggle.BackgroundColor3 = Color3.fromRGB(35,35,35)
 toggle.TextColor3 = Color3.new(1,1,1)
 toggle.BorderSizePixel = 0
-Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 6)
 
 toggle.MouseButton1Click:Connect(function()
     frame.Visible = not frame.Visible
 end)
-
