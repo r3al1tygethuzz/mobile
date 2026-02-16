@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -24,9 +25,9 @@ local function createHitbox(char)
     local hitbox = Instance.new("Part")
     hitbox.Name = "AimHitbox"
     hitbox.Size = Vector3.new(hitboxSize, hitboxSize + 1, hitboxSize)
-    hitbox.Transparency = 0.5
-    hitbox.Color = Color3.fromRGB(255, 80, 80)
-    hitbox.Material = Enum.Material.ForceField
+    hitbox.Transparency = 0.3
+    hitbox.Color = Color3.fromRGB(255, 60, 60)
+    hitbox.Material = Enum.Material.Neon
     hitbox.CanCollide = false
     hitbox.Massless = true
     hitbox.Parent = char
@@ -39,16 +40,21 @@ local function createHitbox(char)
     hitbox.CFrame = hrp.CFrame
 end
 
--- Add hitboxes to all players
+local function updateHitboxes()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr.Character and plr.Character:FindFirstChild("AimHitbox") then
+            plr.Character.AimHitbox.Size =
+                Vector3.new(hitboxSize, hitboxSize + 1, hitboxSize)
+        end
+    end
+end
+
 local function setupCharacter(char)
     createHitbox(char)
 end
 
 for _, plr in pairs(Players:GetPlayers()) do
-    if plr.Character then
-        setupCharacter(plr.Character)
-    end
-
+    if plr.Character then setupCharacter(plr.Character) end
     plr.CharacterAdded:Connect(setupCharacter)
 end
 
@@ -79,46 +85,51 @@ local function getClosestTarget()
 end
 
 ----------------------------------------------------
--- CAMLOCK LOOP
+-- CAMLOCK
 ----------------------------------------------------
 
 RunService.RenderStepped:Connect(function()
     if camlockEnabled then
+        camera.CameraType = Enum.CameraType.Scriptable
+
         if not lockTarget or not lockTarget.Parent then
             lockTarget = getClosestTarget()
         end
 
         if lockTarget then
-            camera.CFrame = CFrame.new(
-                camera.CFrame.Position,
-                lockTarget.Position
-            )
+            camera.CFrame = CFrame.new(camera.CFrame.Position, lockTarget.Position)
         end
+    else
+        camera.CameraType = Enum.CameraType.Custom
     end
 end)
 
 ----------------------------------------------------
--- GUI
+-- MODERN UI
 ----------------------------------------------------
 
-local gui = Instance.new("ScreenGui")
-gui.Parent = player:WaitForChild("PlayerGui")
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 210, 0, 180)
-frame.Position = UDim2.new(0, 20, 0.5, -90)
-frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 240, 0, 160)
+frame.Position = UDim2.new(0, 30, 0.5, -80)
+frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.BorderSizePixel = 0
-frame.Parent = gui
+frame.Active = true
+frame.Draggable = true
+
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 12)
 
 -- Camlock Button
-local camBtn = Instance.new("TextButton")
-camBtn.Size = UDim2.new(1, -20, 0, 45)
+local camBtn = Instance.new("TextButton", frame)
+camBtn.Size = UDim2.new(1, -20, 0, 40)
 camBtn.Position = UDim2.new(0, 10, 0, 10)
 camBtn.Text = "Camlock: OFF"
-camBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+camBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
 camBtn.TextColor3 = Color3.new(1,1,1)
-camBtn.Parent = frame
+camBtn.BorderSizePixel = 0
+Instance.new("UICorner", camBtn).CornerRadius = UDim.new(0, 8)
 
 camBtn.MouseButton1Click:Connect(function()
     camlockEnabled = not camlockEnabled
@@ -126,42 +137,59 @@ camBtn.MouseButton1Click:Connect(function()
     lockTarget = nil
 end)
 
--- Hitbox Slider Button (simple cycle)
-local slider = Instance.new("TextButton")
-slider.Size = UDim2.new(1, -20, 0, 45)
-slider.Position = UDim2.new(0, 10, 0, 65)
-slider.Text = "Hitbox Size: 4"
-slider.BackgroundColor3 = Color3.fromRGB(40,40,40)
-slider.TextColor3 = Color3.new(1,1,1)
-slider.Parent = frame
+-- Slider Background
+local sliderBg = Instance.new("Frame", frame)
+sliderBg.Size = UDim2.new(1, -20, 0, 20)
+sliderBg.Position = UDim2.new(0, 10, 0, 70)
+sliderBg.BackgroundColor3 = Color3.fromRGB(35,35,35)
+sliderBg.BorderSizePixel = 0
+Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(0, 6)
 
-local function updateHitboxes()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Character and plr.Character:FindFirstChild("AimHitbox") then
-            plr.Character.AimHitbox.Size =
-                Vector3.new(hitboxSize, hitboxSize + 1, hitboxSize)
-        end
+-- Slider Fill
+local sliderFill = Instance.new("Frame", sliderBg)
+sliderFill.Size = UDim2.new(0.4, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+sliderFill.BorderSizePixel = 0
+Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 6)
+
+-- Label
+local label = Instance.new("TextLabel", frame)
+label.Size = UDim2.new(1, -20, 0, 20)
+label.Position = UDim2.new(0, 10, 0, 95)
+label.Text = "Hitbox Size: 4"
+label.TextColor3 = Color3.new(1,1,1)
+label.BackgroundTransparency = 1
+
+-- Slider Logic (tap anywhere)
+sliderBg.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+
+        local percent = math.clamp(
+            (input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X,
+            0, 1
+        )
+
+        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+
+        hitboxSize = math.floor(2 + percent * 8)
+        label.Text = "Hitbox Size: " .. hitboxSize
+
+        updateHitboxes()
     end
-end
-
-slider.MouseButton1Click:Connect(function()
-    hitboxSize += 1
-    if hitboxSize > 10 then hitboxSize = 2 end
-
-    slider.Text = "Hitbox Size: "..hitboxSize
-    updateHitboxes()
 end)
 
--- GUI Toggle Button
-local toggle = Instance.new("TextButton")
+-- Toggle UI Button
+local toggle = Instance.new("TextButton", gui)
 toggle.Size = UDim2.new(0, 120, 0, 35)
-togglePosition = UDim2.new(0, 20, 0.5, -130)
-toggle.Position = togglePosition
+toggle.Position = UDim2.new(0, 30, 0.5, -120)
 toggle.Text = "Toggle UI"
-toggle.BackgroundColor3 = Color3.fromRGB(40,40,40)
+toggle.BackgroundColor3 = Color3.fromRGB(35,35,35)
 toggle.TextColor3 = Color3.new(1,1,1)
-toggle.Parent = gui
+toggle.BorderSizePixel = 0
+Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 8)
 
 toggle.MouseButton1Click:Connect(function()
     frame.Visible = not frame.Visible
 end)
+
