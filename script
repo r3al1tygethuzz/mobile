@@ -1,32 +1,68 @@
+--================================================--
+--                  KEY SYSTEM                    --
+--================================================--
+
+local Rayfield = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/r3al1tygethuzz/UILoad/refs/heads/main/Xenware-UI.lua"
+))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Xenware Mobile",
+    LoadingTitle = "Xenware Mobile",
+    LoadingSubtitle = "Mobile Aimbot Edition",
+    Theme = "Amber Glow - AmberGlow",
+    ToggleUIKeybind = nil, -- MOBILE = no keybind
+
+    KeySystem = true,
+    KeySettings = {
+        Title = "Xenware Key System",
+        Subtitle = "Mobile Access",
+        Note = "Use your Xenware key",
+        FileName = "XENWARE_MOBILE_KEY",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = {"ILovePanda"}
+    }
+})
+
+--================================================--
+--                  SERVICES                     --
+--================================================--
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
-----------------------------------------------------
--- SETTINGS
-----------------------------------------------------
+--================================================--
+--                  AIMBOT DATA                  --
+--================================================--
 
-local camlockEnabled = false
-local hitboxSize = 4
-local aimSmoothness = 0.15 -- lower = stronger lock
+local AimbotEnabled = false
+local Smoothness = 0.15
 
-----------------------------------------------------
--- HITBOX EXTENDER (VISIBLE BOX)
-----------------------------------------------------
+--================================================--
+--          HITBOX EXTENDER DATA                 --
+--================================================--
 
-local function createHitbox(char)
-    if char:FindFirstChild("HitboxExtender") then return end
+local HitboxEnabled = false
+local HitboxSize = 5
 
+--================================================--
+--           HITBOX CREATION (VISIBLE)           --
+--================================================--
+
+local function CreateHitbox(char)
+    if char:FindFirstChild("MobileHitbox") then return end
     local hrp = char:WaitForChild("HumanoidRootPart")
 
     local box = Instance.new("Part")
-    box.Name = "HitboxExtender"
-    box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-    box.Transparency = 0.5
+    box.Name = "MobileHitbox"
+    box.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
     box.Color = Color3.fromRGB(255, 60, 60)
     box.Material = Enum.Material.Neon
+    box.Transparency = 0.3
     box.CanCollide = false
     box.Massless = true
     box.Parent = char
@@ -39,43 +75,59 @@ local function createHitbox(char)
     box.CFrame = hrp.CFrame
 end
 
-local function updateHitboxes()
+local function UpdateHitboxes()
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Character and plr.Character:FindFirstChild("HitboxExtender") then
-            local box = plr.Character.HitboxExtender
-            box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        if plr.Character and plr.Character:FindFirstChild("MobileHitbox") then
+            plr.Character.MobileHitbox.Size =
+                Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+            plr.Character.MobileHitbox.Transparency =
+                HitboxEnabled and 0.3 or 1
         end
     end
 end
 
-local function setupCharacter(char)
-    createHitbox(char)
+local function SetupCharacter(char)
+    CreateHitbox(char)
+    UpdateHitboxes()
 end
 
 for _, plr in pairs(Players:GetPlayers()) do
-    if plr.Character then setupCharacter(plr.Character) end
-    plr.CharacterAdded:Connect(setupCharacter)
+    if plr.Character then SetupCharacter(plr.Character) end
+    plr.CharacterAdded:Connect(SetupCharacter)
 end
 
 Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(setupCharacter)
+    plr.CharacterAdded:Connect(SetupCharacter)
 end)
 
-----------------------------------------------------
--- TARGETING
-----------------------------------------------------
+--================================================--
+--           MOBILE TARGET ACQUISITION           --
+--================================================--
 
-local function getClosestTarget()
-    local closest, shortest = nil, math.huge
+local function GetClosestToCenter()
+    local closest = nil
+    local shortest = math.huge
 
-    for _, other in pairs(Players:GetPlayers()) do
-        if other ~= player and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = other.Character.HumanoidRootPart
-            local dist = (hrp.Position - camera.CFrame.Position).Magnitude
+    local center = Vector2.new(
+        Camera.ViewportSize.X / 2,
+        Camera.ViewportSize.Y / 2
+    )
 
-            if dist < shortest then
-                shortest = dist
-                closest = hrp
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character
+        and plr.Character:FindFirstChild("Humanoid")
+        and plr.Character.Humanoid.Health > 0
+        and plr.Character:FindFirstChild("HumanoidRootPart") then
+
+            local hrp = plr.Character.HumanoidRootPart
+            local pos, visible = Camera:WorldToViewportPoint(hrp.Position)
+
+            if visible then
+                local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                if dist < shortest then
+                    shortest = dist
+                    closest = hrp
+                end
             end
         end
     end
@@ -83,81 +135,70 @@ local function getClosestTarget()
     return closest
 end
 
-----------------------------------------------------
--- AIMBOT (SMOOTH, NO CAMERA FREEZE)
-----------------------------------------------------
+--================================================--
+--                AIMBOT LOOP                   --
+--================================================--
 
 RunService.RenderStepped:Connect(function()
-    if not camlockEnabled then return end
+    if not AimbotEnabled then return end
 
-    local target = getClosestTarget()
+    local target = GetClosestToCenter()
     if not target then return end
 
-    local camPos = camera.CFrame.Position
-    local aimCFrame = CFrame.new(camPos, target.Position)
+    local camPos = Camera.CFrame.Position
+    local desired = CFrame.new(camPos, target.Position)
 
-    -- Smooth aiming instead of snapping / freezing
-    camera.CFrame = camera.CFrame:Lerp(aimCFrame, aimSmoothness)
+    Camera.CFrame = Camera.CFrame:Lerp(desired, Smoothness)
 end)
 
-----------------------------------------------------
--- MODERN UI
-----------------------------------------------------
+--================================================--
+--                  RAYFIELD UI                 --
+--================================================--
 
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+local AimTab = Window:CreateTab("🎯 Aim", nil)
+local HitboxTab = Window:CreateTab("📦 Hitbox", nil)
 
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 240, 0, 150)
-frame.Position = UDim2.new(0, 25, 0.5, -75)
-frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+AimTab:CreateToggle({
+    Name = "Mobile Aimbot",
+    CurrentValue = false,
+    Callback = function(v)
+        AimbotEnabled = v
+    end
+})
 
--- Camlock Toggle
-local camBtn = Instance.new("TextButton", frame)
-camBtn.Size = UDim2.new(1, -20, 0, 40)
-camBtn.Position = UDim2.new(0, 10, 0, 10)
-camBtn.Text = "Aimbot: OFF"
-camBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-camBtn.TextColor3 = Color3.new(1,1,1)
-camBtn.BorderSizePixel = 0
-Instance.new("UICorner", camBtn).CornerRadius = UDim.new(0, 6)
+AimTab:CreateSlider({
+    Name = "Smoothness",
+    Range = {0.05, 0.5},
+    Increment = 0.01,
+    CurrentValue = 0.15,
+    Callback = function(v)
+        Smoothness = v
+    end
+})
 
-camBtn.MouseButton1Click:Connect(function()
-    camlockEnabled = not camlockEnabled
-    camBtn.Text = camlockEnabled and "Aimbot: ON" or "Aimbot: OFF"
-end)
+HitboxTab:CreateToggle({
+    Name = "Hitbox Extender",
+    CurrentValue = false,
+    Callback = function(v)
+        HitboxEnabled = v
+        UpdateHitboxes()
+    end
+})
 
--- Hitbox Slider Button (Cycle)
-local sizeBtn = Instance.new("TextButton", frame)
-sizeBtn.Size = UDim2.new(1, -20, 0, 40)
-sizeBtn.Position = UDim2.new(0, 10, 0, 60)
-sizeBtn.Text = "Hitbox Size: 4"
-sizeBtn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-sizeBtn.TextColor3 = Color3.new(1,1,1)
-sizeBtn.BorderSizePixel = 0
-Instance.new("UICorner", sizeBtn).CornerRadius = UDim.new(0, 6)
+HitboxTab:CreateSlider({
+    Name = "Hitbox Size",
+    Range = {2, 20},
+    Increment = 1,
+    CurrentValue = 5,
+    Callback = function(v)
+        HitboxSize = v
+        UpdateHitboxes()
+    end
+})
 
-sizeBtn.MouseButton1Click:Connect(function()
-    hitboxSize += 1
-    if hitboxSize > 12 then hitboxSize = 2 end
+Rayfield:Notify({
+    Title = "Xenware Mobile Loaded",
+    Content = "Aimbot + Hitbox ready",
+    Duration = 4
+})
 
-    sizeBtn.Text = "Hitbox Size: " .. hitboxSize
-    updateHitboxes()
-end)
-
--- Toggle UI Button
-local toggle = Instance.new("TextButton", gui)
-toggle.Size = UDim2.new(0, 120, 0, 35)
-toggle.Position = UDim2.new(0, 25, 0.5, -110)
-toggle.Text = "Toggle UI"
-toggle.BackgroundColor3 = Color3.fromRGB(35,35,35)
-toggle.TextColor3 = Color3.new(1,1,1)
-toggle.BorderSizePixel = 0
-Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 6)
-
-toggle.MouseButton1Click:Connect(function()
-    frame.Visible = not frame.Visible
-end)
